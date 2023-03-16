@@ -8,12 +8,9 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import figure
 import seaborn as sns
-import plotly.graph_objects as go
-import plotly.io as pio
 
 from PIL import Image
 import cv2
-import shapely
 from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
 
@@ -51,6 +48,9 @@ def main():
     cluster_col = args.cell_type
     cells = pd.read_csv(args.cell_csv_path)
     cells = pd.concat([cells, pd.get_dummies(cells[cluster_col])], 1)
+    columns = ['Name']
+    columns.extend(cells['Cell Type'].unique())
+    cell_count_table = pd.DataFrame(columns=columns)
 
     for hne_name, mask_name in zip(hnes, masks):
         hne = np.array(Image.open(hne_name))
@@ -69,7 +69,7 @@ def main():
         plot_cell_type_count(hne, cell_type_count, mask_cells,
                              f"{args.viz_dir}/{hne_name.split('/')[-1].replace('.tif', '.png')}")
 
-        with open(f"{args.out_dir}/{hne_name.split('/')[-1].replace('.tif', '.json')}", "w") as outfile:
+        with open(f"{args.json_dir}/{hne_name.split('/')[-1].replace('.tif', '.json')}", "w") as outfile:
             json.dump(cell_type_count, outfile)
 
         # computed as sum(cell_type_counts in all ftu) / no_of_ftu
@@ -85,6 +85,11 @@ def main():
             mean_cell_type_counts[cell_type] = round(mean_cell_type_counts[cell_type] / ftu_count)
 
         print(mean_cell_type_counts)
+        cell_count = {'Name': hne_name.split('/')[-1][:-4]}
+        cell_count.update(mean_cell_type_counts)
+        cell_count_table = cell_count_table.append(cell_count, ignore_index=True)
+
+    cell_count_table.to_csv(args.out_dir, index=False)
 
 
 def plot_cell_type_count(hne, cell_type_count, mask_cells, out_dir):
@@ -136,7 +141,8 @@ def get_args():
     parser.add_argument("--hne_dir", default="./hne", type=str)
     parser.add_argument("--mask_dir", default="./masks", type=str)
     parser.add_argument("--viz_dir", default="./viz", type=str)
-    parser.add_argument("--out_dir", default="./jsons", type=str)
+    parser.add_argument("--json_dir", default="./jsons", type=str)
+    parser.add_argument("--out_dir", default="./mean_cell_count.csv", type=str)
     parser.add_argument("--cell_csv_path", default="/Users/abhiroop/Developer/cns/CODEX_HuBMAP_alldata_Dryad.csv", type=str)
     parser.add_argument("--X", default='X', type=str)
     parser.add_argument("--Y", default="Y", type=str)
