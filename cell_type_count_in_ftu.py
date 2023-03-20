@@ -51,6 +51,7 @@ def main():
     columns = ['Name']
     columns.extend(cells['Cell Type'].unique())
     cell_count_table = pd.DataFrame(columns=columns)
+    mean_cell_count_table = pd.DataFrame(columns=columns)
 
     for hne_name, mask_name in zip(hnes, masks):
         hne = np.array(Image.open(hne_name))
@@ -74,22 +75,29 @@ def main():
 
         # computed as sum(cell_type_counts in all ftu) / no_of_ftu
         mean_cell_type_counts = {}
+        cell_type_counts = {}
         ftu_count = 0
         for index in cell_type_count.keys():
             ftu_count += 1
             for cell_type in cell_type_count[index]['cell_type_count'].keys():
-                mean_cell_type_counts.setdefault(cell_type, 0)
-                mean_cell_type_counts[cell_type] += cell_type_count[index]['cell_type_count'][cell_type]
+                cell_type_counts.setdefault(cell_type, 0)
+                cell_type_counts[cell_type] += cell_type_count[index]['cell_type_count'][cell_type]
 
-        for cell_type in mean_cell_type_counts.keys():
-            mean_cell_type_counts[cell_type] = round(mean_cell_type_counts[cell_type] / ftu_count)
+        for cell_type in cell_type_counts.keys():
+            mean_cell_type_counts[cell_type] = round(cell_type_counts[cell_type] / ftu_count)
 
         print(mean_cell_type_counts)
+
         cell_count = {'Name': hne_name.split('/')[-1][:-4]}
-        cell_count.update(mean_cell_type_counts)
+        cell_count.update(cell_type_counts)
         cell_count_table = cell_count_table.append(cell_count, ignore_index=True)
 
-    cell_count_table.to_csv(args.out_dir, index=False)
+        mean_cell_count = {'Name': hne_name.split('/')[-1][:-4]}
+        mean_cell_count.update(mean_cell_type_counts)
+        mean_cell_count_table = mean_cell_count_table.append(mean_cell_count, ignore_index=True)
+
+    cell_count_table.to_csv(args.out_dir + "cell_count.csv", index=False)
+    mean_cell_count_table.to_csv(args.out_dir + "mean_cell_count.csv", index=False)
 
 
 def plot_cell_type_count(hne, cell_type_count, mask_cells, out_dir):
@@ -105,7 +113,7 @@ def plot_cell_type_count(hne, cell_type_count, mask_cells, out_dir):
     sns.scatterplot(cells, x='X', y='Y', hue='Cell Type', s=5)
     plt.imshow(hne)
     plt.legend(loc='best', prop={'size': 20})
-    plt.savefig(out_dir)
+    # plt.savefig(out_dir)
 
 
 def get_cell_type_count(mask, mask_cells):
@@ -142,7 +150,7 @@ def get_args():
     parser.add_argument("--mask_dir", default="./masks", type=str)
     parser.add_argument("--viz_dir", default="./viz", type=str)
     parser.add_argument("--json_dir", default="./jsons", type=str)
-    parser.add_argument("--out_dir", default="./mean_cell_count.csv", type=str)
+    parser.add_argument("--out_dir", default="./", type=str)
     parser.add_argument("--cell_csv_path", default="/Users/abhiroop/Developer/cns/CODEX_HuBMAP_alldata_Dryad.csv", type=str)
     parser.add_argument("--X", default='X', type=str)
     parser.add_argument("--Y", default="Y", type=str)
