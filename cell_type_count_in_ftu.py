@@ -54,9 +54,9 @@ def main():
     mean_cell_count_table = pd.DataFrame(columns=columns)
 
     for hne_name, mask_name in zip(hnes, masks):
-        hne = np.array(Image.open(hne_name))
+        hne = np.array(Image.open(mask_name.replace('masks', 'hne')[:-1]))
         mask = np.array(Image.open(mask_name))
-        print(mask_name)
+        print(mask_name.replace('masks', 'hne')[:-1], mask_name)
         array, region, _, _ = mask_name.split('/')[-1].split('_')
         region = int(region[-1])
         # corresponding cells 
@@ -101,7 +101,7 @@ def main():
 
 
 def plot_cell_type_count(hne, cell_type_count, mask_cells, out_dir):
-    figure(figsize=(25, 25), dpi=120)
+    figure(figsize=(25, 25), dpi=40)
     cells = pd.DataFrame(columns=['X', 'Y', 'Cell Type'])
     width, height, _ = hne.shape
     hne = cv2.resize(hne, (height * 2, width * 2))
@@ -113,7 +113,7 @@ def plot_cell_type_count(hne, cell_type_count, mask_cells, out_dir):
     sns.scatterplot(cells, x='X', y='Y', hue='Cell Type', s=5)
     plt.imshow(hne)
     plt.legend(loc='best', prop={'size': 20})
-    # plt.savefig(out_dir)
+    plt.savefig(out_dir)
 
 
 def get_cell_type_count(mask, mask_cells):
@@ -148,7 +148,7 @@ def get_args():
     parser = ArgumentParser()
     parser.add_argument("--hne_dir", default="./hne", type=str)
     parser.add_argument("--mask_dir", default="./masks", type=str)
-    parser.add_argument("--viz_dir", default="./viz", type=str)
+    parser.add_argument("--viz_dir", default="./viz_low_res", type=str)
     parser.add_argument("--json_dir", default="./jsons", type=str)
     parser.add_argument("--out_dir", default="./", type=str)
     parser.add_argument("--cell_csv_path", default="/Users/abhiroop/Developer/cns/CODEX_HuBMAP_alldata_Dryad.csv", type=str)
