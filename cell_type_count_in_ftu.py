@@ -22,7 +22,7 @@ plt.rcParams['figure.figsize'] = (20, 20)
 plt.style.use('ggplot')
 sns.set_style("whitegrid", {'axes.grid': False})
 
-CELL_X_BP_TEMPLATE = {
+CELL_X_BP = {
     "@context": "https://hubmapconsortium.github.io/ccf-ontology/ccf-context.jsonld",
     "@graph": [
         {
@@ -70,8 +70,8 @@ def main():
         plot_cell_type_count(hne, cell_type_count, mask_cells,
                              f"{args.viz_dir}/{hne_name.split('/')[-1].replace('.tif', '.png')}")
 
-        with open(f"{args.json_dir}/{hne_name.split('/')[-1].replace('.tif', '.json')}", "w") as outfile:
-            json.dump(cell_type_count, outfile)
+        with open(f"{args.json_dir}/{hne_name.split('/')[-1].replace('.tif', '.json')}", "w", encoding='utf-8') as outfile:
+            json.dump(cell_type_count, outfile, ensure_ascii=False, indent=4)
 
         # computed as sum(cell_type_counts in all ftu) / no_of_ftu
         mean_cell_type_counts = {}
@@ -99,6 +99,21 @@ def main():
     cell_count_table.to_csv(args.out_dir + "cell_count.csv", index=False)
     mean_cell_count_table.to_csv(args.out_dir + "mean_cell_count.csv", index=False)
 
+    for cell_type in mean_cell_type_counts.keys():
+        summary = {
+            "@type": "CellTypeSummaryRow",
+            "cell": None,
+            "biomarker": None,
+            "cell_label": cell_type,
+            "biomarker_label": None,
+            "count": mean_cell_type_counts[cell_type],
+            "percentage": mean_cell_type_counts[cell_type] / sum(list(mean_cell_type_counts.values()))
+        }
+        CELL_X_BP['@graph'][0]['summary'].append(summary)
+
+    with open('cell_type_summary.json', 'w', encoding='utf-8') as f:
+        json.dump(CELL_X_BP, f, ensure_ascii=False, indent=4)
+
 
 def plot_cell_type_count(hne, cell_type_count, mask_cells, out_dir):
     figure(figsize=(25, 25), dpi=40)
@@ -113,7 +128,7 @@ def plot_cell_type_count(hne, cell_type_count, mask_cells, out_dir):
     sns.scatterplot(cells, x='X', y='Y', hue='Cell Type', s=5)
     plt.imshow(hne)
     plt.legend(loc='best', prop={'size': 20})
-    plt.savefig(out_dir)
+    # plt.savefig(out_dir)
 
 
 def get_cell_type_count(mask, mask_cells):
