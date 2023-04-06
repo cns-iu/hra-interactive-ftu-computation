@@ -36,6 +36,16 @@ CELL_X_BP = {
     ]
 }
 
+BIOMARKER_LIST = [
+    'MUC2', 'SOX9', 'MUC1', 'CD31', 'Synapto', 'CD49f',
+    'CD15', 'CHGA', 'CDX2', 'ITLN1', 'CD4', 'CD127', 'Vimentin', 'HLADR',
+    'CD8', 'CD11c', 'CD44', 'CD16', 'BCL2', 'CD3', 'CD123', 'CD38', 'CD90',
+    'aSMA', 'CD21', 'NKG2D', 'CD66', 'CD57', 'CD206', 'CD68', 'CD34',
+    'aDef5', 'CD7', 'CD36', 'CD138', 'CD45RO', 'Cytokeratin', 'CD117',
+    'CD19', 'Podoplanin', 'CD45', 'CD56', 'CD69', 'Ki67', 'CD49a', 'CD163',
+    'CD161', 'OLFM4', 'FAP', 'CD25', 'CollIV', 'CK7', 'MUC6',
+]
+
 
 def main():
     args = get_args()
@@ -67,8 +77,8 @@ def main():
         mask = cv2.resize(mask, (width * 2, height * 2), interpolation=cv2.INTER_AREA)
 
         cell_type_count = get_cell_type_count(mask, mask_cells)
-        plot_cell_type_count(hne, cell_type_count, mask_cells,
-                             f"{args.viz_dir}/{hne_name.split('/')[-1].replace('.tif', '.png')}")
+        # plot_cell_type_count(hne, cell_type_count, mask_cells,
+                             # f"{args.viz_dir}/{hne_name.split('/')[-1].replace('.tif', '.png')}")
 
         with open(f"{args.json_dir}/{hne_name.split('/')[-1].replace('.tif', '.json')}", "w", encoding='utf-8') as outfile:
             json.dump(cell_type_count, outfile, ensure_ascii=False, indent=4)
@@ -77,11 +87,42 @@ def main():
         mean_cell_type_counts = {}
         cell_type_counts = {}
         ftu_count = 0
+        dataset_expression = {}
         for index in cell_type_count.keys():
             ftu_count += 1
+            ftu_expression = {}
+            # for cell in cell_type_count[index]['cells']:
+                # ftu_expression.append(list(cell[-1].values()))
             for cell_type in cell_type_count[index]['cell_type_count'].keys():
                 cell_type_counts.setdefault(cell_type, 0)
                 cell_type_counts[cell_type] += cell_type_count[index]['cell_type_count'][cell_type]
+                ftu_expression.setdefault(cell_type, [])
+                for cell in cell_type_count[index]['cells']:
+                    if cell[-2] == cell_type:
+                        ftu_expression[cell_type].append(list(cell[-1].values()))
+                
+                if ftu_expression[cell_type] != []:
+                    # print(np.array(ftu_expression[cell_type]).shape)
+                    # print(cell_type, np.nan_to_num(np.array(ftu_expression[cell_type])).mean(axis=1).shape)
+                    # print(np.nanmean(np.array(ftu_expression[cell_type]), axis=0).shape)
+                    ftu_expression[cell_type] = np.nanmean(np.array(ftu_expression[cell_type]), axis=0)
+                    # ftu_expression = np.nan_to_num(np.array(ftu_expression))
+                    # ftu_expression = list(np.mean(ftu_expression, axis=1))
+                    # dataset_expression.append(ftu_expression)
+                else:
+                    # dataset_expression.append(np.zeros(len(BIOMARKER_LIST)))
+                    ftu_expression[cell_type] = np.zeros(len(BIOMARKER_LIST))
+
+                dataset_expression.setdefault(cell_type, [])
+                dataset_expression[cell_type].append(list(ftu_expression[cell_type]))
+
+            print(ftu_expression)
+
+
+        # print(dataset_expression)           
+        # dataset_expression = np.array(dataset_expression)
+        # dataset_expression = np.mean(dataset_expression, axis=1)
+        # dataset_expression = dict(zip(BIOMARKER_LIST, list(dataset_expression)))
 
         for cell_type in cell_type_counts.keys():
             mean_cell_type_counts[cell_type] = round(cell_type_counts[cell_type] / ftu_count)
@@ -96,23 +137,25 @@ def main():
         mean_cell_count.update(mean_cell_type_counts)
         mean_cell_count_table = mean_cell_count_table.append(mean_cell_count, ignore_index=True)
 
+        for cell_type in mean_cell_type_counts.keys():
+            dataset_expression[cell_type] = list(np.nanmean(np.array(dataset_expression[cell_type]), axis=0))
+            summary = {
+                "@type": "CellTypeSummaryRow",
+                "cell": None,
+                "biomarker": None,
+                "cell_label": cell_type,
+                "biomarker_label": dict(zip(BIOMARKER_LIST, dataset_expression[cell_type])),
+                "count": mean_cell_type_counts[cell_type],
+                "percentage": mean_cell_type_counts[cell_type] / sum(list(mean_cell_type_counts.values()))
+            }
+            CELL_X_BP['@graph'][0]['summary'].append(summary)
+        fname = mask_name.split('/')[-1]
+        with open(f'cell_type_summary_{fname}.json', 'w', encoding='utf-8') as f:
+            json.dump(CELL_X_BP, f, ensure_ascii=False, indent=4)
+
     cell_count_table.to_csv(args.out_dir + "cell_count.csv", index=False)
     mean_cell_count_table.to_csv(args.out_dir + "mean_cell_count.csv", index=False)
 
-    for cell_type in mean_cell_type_counts.keys():
-        summary = {
-            "@type": "CellTypeSummaryRow",
-            "cell": None,
-            "biomarker": None,
-            "cell_label": cell_type,
-            "biomarker_label": None,
-            "count": mean_cell_type_counts[cell_type],
-            "percentage": mean_cell_type_counts[cell_type] / sum(list(mean_cell_type_counts.values()))
-        }
-        CELL_X_BP['@graph'][0]['summary'].append(summary)
-
-    with open('cell_type_summary.json', 'w', encoding='utf-8') as f:
-        json.dump(CELL_X_BP, f, ensure_ascii=False, indent=4)
 
 
 def plot_cell_type_count(hne, cell_type_count, mask_cells, out_dir):
@@ -130,6 +173,9 @@ def plot_cell_type_count(hne, cell_type_count, mask_cells, out_dir):
     plt.legend(loc='best', prop={'size': 20})
     # plt.savefig(out_dir)
 
+
+def compute_biomarker_expression():
+    pass
 
 def get_cell_type_count(mask, mask_cells):
     # height, width = mask.shape
@@ -149,10 +195,12 @@ def get_cell_type_count(mask, mask_cells):
             'cells': [],
             'cell_type_count': {}
         }
-        for x, y, cell_type in zip(mask_cells['x'], mask_cells['y'], mask_cells['Cell Type']):
+        # print(mask_cells.columns)
+        for x, y, cell_type, biomarker_expressions in zip(mask_cells['x'], mask_cells['y'], mask_cells['Cell Type'], mask_cells.loc[:, BIOMARKER_LIST].values):
             point = Point(x, y)
             if ftu_polygon.contains(point):
-                cell_type_count_in_ftu[index]['cells'].append([x, y, cell_type])
+                biomarker_expression_dict = dict(zip(BIOMARKER_LIST, biomarker_expressions))
+                cell_type_count_in_ftu[index]['cells'].append([x, y, cell_type, biomarker_expression_dict])
                 cell_type_count_in_ftu[index]['cell_type_count'].setdefault(cell_type, 0)
                 cell_type_count_in_ftu[index]['cell_type_count'][cell_type] += 1
 
